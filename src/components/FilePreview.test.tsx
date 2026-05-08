@@ -60,6 +60,51 @@ const drawioEntry: VaultEntry = {
   filename: 'flow.drawio',
   title: 'flow.drawio',
 }
+const secondDrawioEntry: VaultEntry = {
+  ...drawioEntry,
+  path: '/vault/Attachments/second-flow.drawio',
+  filename: 'second-flow.drawio',
+  title: 'second-flow.drawio',
+}
+
+function makeDrawioFixture(imageSrc: string): string {
+  return `
+    <mxfile host="65bd71144e">
+      <diagram id="original-reference" name="원본 이미지 기준">
+        <mxGraphModel page="1" pageWidth="1697" pageHeight="2063" background="#ffffff">
+          <root>
+            <mxCell id="0" />
+            <mxCell id="1" parent="0" />
+            <mxCell
+              id="title"
+              value="os pintos process fork sequence"
+              style="text;html=1;strokeColor=none;fillColor=none;"
+              parent="1"
+              vertex="1"
+            />
+            <mxCell
+              id="exact-image"
+              value=""
+              style="shape=image;html=1;aspect=fixed;imageAspect=1;locked=1;image=${imageSrc};rounded=0;"
+              parent="1"
+              vertex="1"
+            />
+          </root>
+        </mxGraphModel>
+      </diagram>
+    </mxfile>
+  `
+}
+
+function deferred<T>() {
+  let resolve!: (value: T) => void
+  let reject!: (reason?: unknown) => void
+  const promise = new Promise<T>((promiseResolve, promiseReject) => {
+    resolve = promiseResolve
+    reject = promiseReject
+  })
+  return { promise, resolve, reject }
+}
 
 describe('FilePreview', () => {
   beforeEach(() => {
@@ -118,19 +163,10 @@ describe('FilePreview', () => {
   })
 
   it('renders draw.io files with an embedded preview image', async () => {
+    const encodedImageSrc = 'data:image/png%3Bbase64,abc123'
     vi.stubGlobal('fetch', vi.fn(async () => ({
       ok: true,
-      text: async () => `
-        <mxfile>
-          <diagram>
-            <mxGraphModel>
-              <root>
-                <mxCell id="preview" style="shape=image;image=data:image/png%3Bbase64,abc123;" />
-              </root>
-            </mxGraphModel>
-          </diagram>
-        </mxfile>
-      `,
+      text: async () => makeDrawioFixture(encodedImageSrc),
     })))
 
     render(<FilePreview entry={drawioEntry} />)
@@ -140,10 +176,63 @@ describe('FilePreview', () => {
     expect(trackEventMock).toHaveBeenCalledWith('file_preview_opened', { preview_kind: 'drawio' })
   })
 
+  it('keeps a loading state until the draw.io asset fetch resolves', async () => {
+    const pendingResponse = deferred<{ ok: boolean; text: () => Promise<string> }>()
+    vi.stubGlobal('fetch', vi.fn(() => pendingResponse.promise))
+
+    render(<FilePreview entry={drawioEntry} />)
+
+    expect(screen.getByTestId('drawio-file-preview-loading')).toHaveTextContent('Loading draw.io preview')
+
+    pendingResponse.resolve({
+      ok: true,
+      text: async () => makeDrawioFixture('data:image/png%3Bbase64,ready'),
+    })
+
+    expect(await screen.findByTestId('drawio-file-preview')).toHaveAttribute('src', 'data:image/png;base64,ready')
+    expect(screen.queryByTestId('drawio-file-preview-loading')).not.toBeInTheDocument()
+  })
+
+  it('ignores a stale draw.io fetch result after switching to another file', async () => {
+    const firstResponse = deferred<{ ok: boolean; text: () => Promise<string> }>()
+    const fetchMock = vi
+      .fn()
+      .mockReturnValueOnce(firstResponse.promise)
+      .mockResolvedValueOnce({
+        ok: true,
+        text: async () => makeDrawioFixture('data:image/png%3Bbase64,current'),
+      })
+    vi.stubGlobal('fetch', fetchMock)
+
+    const { rerender } = render(<FilePreview entry={drawioEntry} />)
+
+    rerender(<FilePreview entry={secondDrawioEntry} />)
+    firstResponse.resolve({
+      ok: true,
+      text: async () => makeDrawioFixture('data:image/png%3Bbase64,stale'),
+    })
+
+    expect(await screen.findByTestId('drawio-file-preview')).toHaveAttribute('src', 'data:image/png;base64,current')
+    expect(fetchMock).toHaveBeenNthCalledWith(1, 'asset:///vault/Attachments/flow.drawio')
+    expect(fetchMock).toHaveBeenNthCalledWith(2, 'asset:///vault/Attachments/second-flow.drawio')
+  })
+
   it('falls back when a draw.io file has no embedded preview image', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => ({
       ok: true,
       text: async () => '<mxfile><diagram /></mxfile>',
+    })))
+
+    render(<FilePreview entry={drawioEntry} />)
+
+    expect(await screen.findByTestId('file-preview-fallback')).toHaveTextContent('draw.io preview failed')
+    expect(trackEventMock).toHaveBeenCalledWith('file_preview_failed', { preview_kind: 'drawio' })
+  })
+
+  it('falls back when a draw.io asset request fails', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => ({
+      ok: false,
+      status: 404,
     })))
 
     render(<FilePreview entry={drawioEntry} />)
@@ -169,5 +258,17 @@ describe('FilePreview', () => {
       expect.any(String),
       expect.objectContaining({ path: expect.any(String) }),
     )
+  })
+
+  it('does not fetch asset text for existing image and PDF previews', () => {
+    const fetchMock = vi.fn()
+    vi.stubGlobal('fetch', fetchMock)
+
+    const { rerender } = render(<FilePreview entry={imageEntry} />)
+    expect(screen.getByTestId('image-file-preview')).toHaveAttribute('src', 'asset:///vault/Attachments/photo.png')
+
+    rerender(<FilePreview entry={pdfEntry} />)
+    expect(screen.getByTestId('pdf-file-preview')).toHaveAttribute('data', 'asset:///vault/Attachments/report.pdf')
+    expect(fetchMock).not.toHaveBeenCalled()
   })
 })
