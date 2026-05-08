@@ -392,33 +392,6 @@
   font-size: 0.85rem;
 }
 
-.editor__blocknote-container .drawio-inline-preview {
-  max-width: min(100%, 960px);
-  margin: 10px auto 18px;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: var(--background);
-  overflow: auto;
-}
-
-.editor__blocknote-container .drawio-inline-preview__image {
-  display: block;
-  width: 100%;
-  height: auto;
-  background: #fff;
-}
-
-.editor__blocknote-container .drawio-inline-preview__status {
-  padding: 18px;
-  text-align: center;
-  color: var(--muted-foreground);
-  font-size: 13px;
-}
-
-.editor__blocknote-container .drawio-inline-preview__status--error {
-  color: var(--destructive);
-}
-
 .editor__blocknote-container[data-follow-links] .bn-editor a,
 .editor__blocknote-container[data-follow-links] .wikilink {
   cursor: pointer;
