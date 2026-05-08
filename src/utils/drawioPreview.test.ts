@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { extractDrawioEmbeddedImage, isDrawioPath, resolveDrawioLinkPath } from './drawioPreview'
+import {
+  extractDrawioEmbeddedImage,
+  isDrawioPath,
+  resolveDrawioLinkPath,
+  resolveDrawioPreviewImagePath,
+} from './drawioPreview'
 
 describe('isDrawioPath', () => {
   it('recognizes drawio links with query and fragment decorators', () => {
@@ -47,5 +52,17 @@ describe('extractDrawioEmbeddedImage', () => {
 
   it('returns null when no embedded image exists', () => {
     expect(extractDrawioEmbeddedImage('<mxfile><diagram /></mxfile>')).toBeNull()
+  })
+})
+
+describe('resolveDrawioPreviewImagePath', () => {
+  it('maps vault diagram assets to matching preview images', () => {
+    expect(resolveDrawioPreviewImagePath(
+      '/Users/woonyong/vault/assets/diagrams/os-pintos-vm-page-types-structure.drawio',
+    )).toBe('/Users/woonyong/vault/assets/images/os-pintos-vm-page-types-structure-preview.png')
+  })
+
+  it('falls back to a sibling preview image outside the vault assets layout', () => {
+    expect(resolveDrawioPreviewImagePath('/vault/Attachments/flow.drawio')).toBe('/vault/Attachments/flow-preview.png')
   })
 })

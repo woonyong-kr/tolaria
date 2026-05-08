@@ -66,6 +66,12 @@ const secondDrawioEntry: VaultEntry = {
   filename: 'second-flow.drawio',
   title: 'second-flow.drawio',
 }
+const vaultAssetDrawioEntry: VaultEntry = {
+  ...drawioEntry,
+  path: '/vault/assets/diagrams/os-pintos-vm-page-types-structure.drawio',
+  filename: 'os-pintos-vm-page-types-structure.drawio',
+  title: 'os-pintos-vm-page-types-structure.drawio',
+}
 
 function makeDrawioFixture(imageSrc: string): string {
   return `
@@ -217,13 +223,30 @@ describe('FilePreview', () => {
     expect(fetchMock).toHaveBeenNthCalledWith(2, 'asset:///vault/Attachments/second-flow.drawio')
   })
 
-  it('falls back when a draw.io file has no embedded preview image', async () => {
+  it('uses the matching assets image when a draw.io file has no embedded preview image', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => ({
       ok: true,
       text: async () => '<mxfile><diagram /></mxfile>',
     })))
 
-    render(<FilePreview entry={drawioEntry} />)
+    render(<FilePreview entry={vaultAssetDrawioEntry} />)
+
+    expect(await screen.findByTestId('drawio-file-preview')).toHaveAttribute(
+      'src',
+      'asset:///vault/assets/images/os-pintos-vm-page-types-structure-preview.png',
+    )
+    expect(trackEventMock).not.toHaveBeenCalledWith('file_preview_failed', { preview_kind: 'drawio' })
+  })
+
+  it('falls back when the generated draw.io preview image cannot render', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => ({
+      ok: true,
+      text: async () => '<mxfile><diagram /></mxfile>',
+    })))
+
+    render(<FilePreview entry={vaultAssetDrawioEntry} />)
+
+    fireEvent.error(await screen.findByTestId('drawio-file-preview'))
 
     expect(await screen.findByTestId('file-preview-fallback')).toHaveTextContent('draw.io preview failed')
     expect(trackEventMock).toHaveBeenCalledWith('file_preview_failed', { preview_kind: 'drawio' })

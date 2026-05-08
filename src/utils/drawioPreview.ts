@@ -96,3 +96,23 @@ export function extractDrawioEmbeddedImage(xml: string): string | null {
 
   return null
 }
+
+export function resolveDrawioPreviewImagePath(drawioPath: string): string | null {
+  const cleanPath = stripUrlDecorators(drawioPath.trim())
+  if (!isDrawioPath(cleanPath)) return null
+
+  const withoutExtension = cleanPath.replace(/\.drawio$/iu, '')
+  const filenameStart = withoutExtension.lastIndexOf('/') + 1
+  const filename = withoutExtension.slice(filenameStart)
+  if (!filename) return null
+
+  const assetsDiagramSegment = '/assets/diagrams/'
+  const assetsDiagramIndex = withoutExtension.lastIndexOf(assetsDiagramSegment)
+  if (assetsDiagramIndex !== -1) {
+    const vaultRoot = withoutExtension.slice(0, assetsDiagramIndex)
+    return `${vaultRoot}/assets/images/${filename}-preview.png`
+  }
+
+  const directory = filenameStart > 0 ? withoutExtension.slice(0, filenameStart - 1) : ''
+  return directory ? `${directory}/${filename}-preview.png` : `${filename}-preview.png`
+}

@@ -48,7 +48,7 @@ import {
   registerPlainTextPasteTarget,
   type PlainTextPasteTarget,
 } from '../utils/plainTextPaste'
-import { extractDrawioEmbeddedImage, resolveDrawioLinkPath } from '../utils/drawioPreview'
+import { extractDrawioEmbeddedImage, resolveDrawioLinkPath, resolveDrawioPreviewImagePath } from '../utils/drawioPreview'
 import { parseWikilinkTarget } from '../utils/wikilink'
 
 const TEST_TABLE_MARKDOWN = `| Head 1 | Head 2 | Head 3 |
@@ -683,6 +683,9 @@ function renderDrawioEmbedImage(shell: HTMLElement, imageSrc: string, label: str
   image.src = imageSrc
   image.alt = label
   image.loading = 'lazy'
+  image.onerror = () => {
+    renderDrawioEmbedError(shell)
+  }
   shell.append(image)
 }
 
@@ -755,7 +758,12 @@ function useDrawioLinkEmbeds(options: {
             if (disposed || !shell.isConnected) return
             const imageSrc = extractDrawioEmbeddedImage(xml)
             if (!imageSrc) {
-              renderDrawioEmbedError(shell)
+              const previewImagePath = resolveDrawioPreviewImagePath(drawioPath)
+              if (previewImagePath) {
+                renderDrawioEmbedImage(shell, convertFileSrc(previewImagePath), anchorLabel(anchor))
+              } else {
+                renderDrawioEmbedError(shell)
+              }
               return
             }
             renderDrawioEmbedImage(shell, imageSrc, anchorLabel(anchor))

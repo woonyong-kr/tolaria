@@ -6,7 +6,7 @@ import { trackFilePreviewAction, trackFilePreviewFailed, trackFilePreviewOpened 
 import { filePreviewKind, previewFileTypeLabel, type FilePreviewKind } from '../utils/filePreview'
 import { focusNoteListContainer } from '../utils/neighborhoodHistory'
 import { openLocalFile } from '../utils/url'
-import { extractDrawioEmbeddedImage } from '../utils/drawioPreview'
+import { extractDrawioEmbeddedImage, resolveDrawioPreviewImagePath } from '../utils/drawioPreview'
 import { Button } from './ui/button'
 
 interface FilePreviewProps {
@@ -191,9 +191,11 @@ function FilePreviewImage({
 function FilePreviewDrawio({
   entry,
   imageSrc,
+  onImageError,
 }: {
   entry: VaultEntry
   imageSrc: string
+  onImageError: () => void
 }) {
   return (
     <div className="flex h-full min-h-[260px] items-center justify-center p-6">
@@ -202,6 +204,7 @@ function FilePreviewDrawio({
         alt={entry.title}
         className="max-h-full max-w-full object-contain"
         data-testid="drawio-file-preview"
+        onError={onImageError}
       />
     </div>
   )
@@ -230,6 +233,7 @@ function FilePreviewBody({
   drawioImageSrc,
   drawioFailed,
   onImageError,
+  onDrawioImageError,
   onOpenExternal,
 }: {
   entry: VaultEntry
@@ -239,6 +243,7 @@ function FilePreviewBody({
   drawioImageSrc: string | null
   drawioFailed: boolean
   onImageError: () => void
+  onDrawioImageError: () => void
   onOpenExternal: () => void
 }) {
   if (shouldRenderImagePreview(previewKind === 'image', assetSrc, imageFailed)) {
@@ -250,7 +255,7 @@ function FilePreviewBody({
   }
 
   if (previewKind === 'drawio' && drawioImageSrc !== null && !drawioFailed) {
-    return <FilePreviewDrawio entry={entry} imageSrc={drawioImageSrc} />
+    return <FilePreviewDrawio entry={entry} imageSrc={drawioImageSrc} onImageError={onDrawioImageError} />
   }
 
   if (previewKind === 'drawio' && !drawioFailed) {
@@ -288,6 +293,11 @@ export function FilePreview({
     trackFilePreviewFailed('image')
   }, [entry.path])
 
+  const handleDrawioImageError = useCallback(() => {
+    setDrawioPreview({ path: entry.path, imageSrc: null, failed: true })
+    trackFilePreviewFailed('drawio')
+  }, [entry.path])
+
   useEffect(() => {
     trackFilePreviewOpened(previewKind)
   }, [entry.path, previewKind])
@@ -305,8 +315,13 @@ export function FilePreview({
         if (cancelled) return
         const imageSrc = extractDrawioEmbeddedImage(xml)
         if (!imageSrc) {
-          setDrawioPreview({ path: entry.path, imageSrc: null, failed: true })
-          trackFilePreviewFailed('drawio')
+          const previewImagePath = resolveDrawioPreviewImagePath(entry.path)
+          if (previewImagePath) {
+            setDrawioPreview({ path: entry.path, imageSrc: convertFileSrc(previewImagePath), failed: false })
+          } else {
+            setDrawioPreview({ path: entry.path, imageSrc: null, failed: true })
+            trackFilePreviewFailed('drawio')
+          }
           return
         }
         setDrawioPreview({ path: entry.path, imageSrc, failed: false })
@@ -376,6 +391,7 @@ export function FilePreview({
           drawioImageSrc={drawioImageSrc}
           drawioFailed={drawioFailed}
           onImageError={handleImageError}
+          onDrawioImageError={handleDrawioImageError}
           onOpenExternal={handleOpenExternal}
         />
       </div>
