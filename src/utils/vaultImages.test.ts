@@ -43,6 +43,15 @@ describe('resolveImageUrls', () => {
     )
   })
 
+  it('converts relative vault asset paths to asset URLs', () => {
+    tauriMode = true
+    const markdown = '![diagram](assets/images/os-flow.png)'
+
+    expect(resolveImageUrls(markdown, '/vault')).toBe(
+      `![diagram](${assetUrl('/vault/assets/images/os-flow.png')})`,
+    )
+  })
+
   it('converts Windows relative attachment paths without mixed separators', () => {
     tauriMode = true
     const vaultPath = 'C:\\Users\\lnq12\\Documents\\tolaria-test\\Getting Started'
@@ -133,6 +142,15 @@ describe('portableImageUrls', () => {
 
     expect(portableImageUrls(markdown, '/vault')).toBe(
       '![screenshot](attachments/1776369786040-CleanShot.png)',
+    )
+  })
+
+  it('converts vault asset image URLs to relative paths', () => {
+    const url = assetUrl('/vault/assets/images/os-flow.png')
+    const markdown = `![diagram](${url})`
+
+    expect(portableImageUrls(markdown, '/vault')).toBe(
+      '![diagram](assets/images/os-flow.png)',
     )
   })
 

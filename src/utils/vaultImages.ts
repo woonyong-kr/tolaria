@@ -6,6 +6,8 @@ const HTTP_ASSET_URL_PREFIX = 'http://asset.localhost/'
 const ASSET_URL_PREFIXES = [ASSET_URL_PREFIX, HTTP_ASSET_URL_PREFIX]
 const ATTACHMENTS_SEGMENT = '/attachments/'
 const RELATIVE_ATTACHMENTS_PREFIX = 'attachments/'
+const RELATIVE_ASSETS_PREFIX = 'assets/'
+const VAULT_ROOT_RELATIVE_PREFIXES = [RELATIVE_ATTACHMENTS_PREFIX, RELATIVE_ASSETS_PREFIX]
 const WINDOWS_EXTENDED_PATH_PREFIX = '\\\\?\\'
 const WINDOWS_EXTENDED_UNC_PREFIX = '\\\\?\\UNC\\'
 const WINDOWS_DRIVE_PATH_PATTERN = /^[A-Za-z]:[\\/]/
@@ -33,7 +35,7 @@ function relativePathForVault(vaultPath: VaultPath, attachmentPath: AttachmentPa
     : attachmentPath.replace(/\\/g, '/')
 }
 
-function vaultAttachmentPath(vaultPath: VaultPath, attachmentPath: AttachmentPath): AbsolutePath {
+function vaultLocalAssetPath(vaultPath: VaultPath, attachmentPath: AttachmentPath): AbsolutePath {
   const separator = usesWindowsSeparators(vaultPath) ? '\\' : '/'
   const normalizedAttachmentPath = relativePathForVault(vaultPath, attachmentPath)
   const joiner = vaultPath.endsWith('/') || vaultPath.endsWith('\\') ? '' : separator
@@ -89,11 +91,20 @@ function isCurrentVaultAsset(url: MarkdownImageUrl, vaultPath: VaultPath): boole
 function currentVaultAttachmentPath(url: MarkdownImageUrl, vaultPath: VaultPath): AttachmentPath | null {
   const absolutePath = normalizedFilesystemPath(decodeAssetPath(url))
   const normalizedVaultPath = withoutTrailingSlash(normalizedFilesystemPath(vaultPath))
-  const attachmentsPrefix = `${normalizedVaultPath}/${RELATIVE_ATTACHMENTS_PREFIX}`
-  if (!absolutePath.startsWith(attachmentsPrefix)) return null
 
-  const filename = absolutePath.slice(attachmentsPrefix.length)
-  return filename ? `${RELATIVE_ATTACHMENTS_PREFIX}${filename}` : null
+  for (const relativePrefix of VAULT_ROOT_RELATIVE_PREFIXES) {
+    const localAssetPrefix = `${normalizedVaultPath}/${relativePrefix}`
+    if (!absolutePath.startsWith(localAssetPrefix)) continue
+
+    const filename = absolutePath.slice(localAssetPrefix.length)
+    return filename ? `${relativePrefix}${filename}` : null
+  }
+
+  return null
+}
+
+function isVaultRootRelativeAssetPath(url: MarkdownImageUrl): boolean {
+  return VAULT_ROOT_RELATIVE_PREFIXES.some(prefix => url.startsWith(prefix))
 }
 
 function rewriteMarkdownImages(
@@ -110,8 +121,8 @@ export function resolveImageUrls(markdown: Markdown, vaultPath: VaultPath): Mark
   if (!isTauri() || !vaultPath) return markdown
 
   return rewriteMarkdownImages(markdown, (url) => {
-    if (url.startsWith(RELATIVE_ATTACHMENTS_PREFIX)) {
-      return assetUrl(vaultAttachmentPath(vaultPath, url))
+    if (isVaultRootRelativeAssetPath(url)) {
+      return assetUrl(vaultLocalAssetPath(vaultPath, url))
     }
 
     if (!isAssetUrl(url) || isCurrentVaultAsset(url, vaultPath)) {
@@ -119,7 +130,7 @@ export function resolveImageUrls(markdown: Markdown, vaultPath: VaultPath): Mark
     }
 
     const attachmentPath = extractAttachmentPath(decodeAssetPath(url))
-    return attachmentPath ? assetUrl(vaultAttachmentPath(vaultPath, attachmentPath)) : null
+    return attachmentPath ? assetUrl(vaultLocalAssetPath(vaultPath, attachmentPath)) : null
   })
 }
 
