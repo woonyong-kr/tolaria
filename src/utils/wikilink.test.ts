@@ -3,6 +3,8 @@ import type { VaultEntry } from '../types'
 import {
   wikilinkTarget,
   wikilinkDisplay,
+  wikilinkHeading,
+  wikilinkLookupTarget,
   resolveEntry,
   relativePathStem,
   slugifyWikilinkTarget,
@@ -30,8 +32,31 @@ describe('wikilinkTarget', () => {
   it('returns target before pipe', () => {
     expect(wikilinkTarget('[[path|display]]')).toBe('path')
   })
+  it('strips heading anchors from note lookup targets', () => {
+    expect(wikilinkTarget('[[path/to-note#Details|display]]')).toBe('path/to-note')
+  })
+  it('returns an empty note target for same-note heading links', () => {
+    expect(wikilinkTarget('[[#Details|display]]')).toBe('')
+  })
   it('handles bare text without brackets', () => {
     expect(wikilinkTarget('just text')).toBe('just text')
+  })
+})
+
+describe('wikilinkHeading', () => {
+  it('extracts heading anchors', () => {
+    expect(wikilinkHeading('[[path#구현 전 전체 그림|그림]]')).toBe('구현 전 전체 그림')
+    expect(wikilinkHeading('[[#Local Heading]]')).toBe('Local Heading')
+  })
+
+  it('returns null when no heading is present', () => {
+    expect(wikilinkHeading('[[path|display]]')).toBeNull()
+  })
+})
+
+describe('wikilinkLookupTarget', () => {
+  it('returns the note target without display text or heading', () => {
+    expect(wikilinkLookupTarget('[[notes/os/foo#Heading|Alias]]')).toBe('notes/os/foo')
   })
 })
 
@@ -74,6 +99,11 @@ describe('resolveEntry', () => {
   it('handles pipe syntax: uses target part for lookup', () => {
     expect(resolveEntry(entries, 'person/alice|Alice S.')).toBe(alice)
     expect(resolveEntry(entries, 'Alice|A')).toBe(alice)
+  })
+
+  it('handles heading syntax: uses note target for lookup', () => {
+    expect(resolveEntry(entries, 'person/alice#Details')).toBe(alice)
+    expect(resolveEntry(entries, 'Alice#Details|Read details')).toBe(alice)
   })
 
   it('returns undefined for non-existent target', () => {

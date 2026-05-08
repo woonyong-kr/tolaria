@@ -1,7 +1,9 @@
 import { useEffect, type RefObject } from 'react'
 import { normalizeExternalUrl, openExternalUrl } from '../utils/url'
+import { parseWikilinkTarget } from '../utils/wikilink'
 
 const CODE_CONTEXT_SELECTOR = '[data-content-type="codeBlock"], pre, code'
+const HEADING_SELECTOR = 'h1, h2, h3, h4, h5, h6, [role="heading"], [data-content-type="heading"]'
 
 function hasFollowModifier(event: KeyboardEvent | MouseEvent) {
   return event.metaKey || event.ctrlKey
@@ -17,6 +19,54 @@ function resolveWikilinkTarget(target: HTMLElement) {
 
 function resolveAnchorHref(target: HTMLElement) {
   return target.closest<HTMLAnchorElement>('a[href]')?.getAttribute('href')?.trim() ?? null
+}
+
+function normalizeHeadingText(value: string) {
+  return decodeURIComponent(value)
+    .trim()
+    .replace(/^#+\s*/u, '')
+    .replace(/\s+/gu, ' ')
+    .toLowerCase()
+}
+
+function slugHeadingText(value: string) {
+  return normalizeHeadingText(value)
+    .replace(/[^\p{L}\p{N}\s-]/gu, '')
+    .replace(/\s+/gu, '-')
+}
+
+function findHeadingElement(container: HTMLElement, heading: string): HTMLElement | null {
+  const normalizedTarget = normalizeHeadingText(heading)
+  const slugTarget = slugHeadingText(heading)
+
+  for (const candidate of Array.from(container.querySelectorAll<HTMLElement>(HEADING_SELECTOR))) {
+    const candidateText = candidate.textContent ?? ''
+    if (
+      normalizeHeadingText(candidateText) === normalizedTarget
+      || slugHeadingText(candidateText) === slugTarget
+    ) {
+      return candidate
+    }
+  }
+
+  return null
+}
+
+function scrollHeadingIntoView(container: HTMLElement, heading: string): boolean {
+  const headingElement = findHeadingElement(container, heading)
+  if (!headingElement) return false
+  headingElement.scrollIntoView({ block: 'start', behavior: 'smooth' })
+  return true
+}
+
+function scrollHeadingIntoViewWhenAvailable(container: HTMLElement, heading: string) {
+  scrollHeadingIntoView(container, heading)
+  const delays = [50, 150, 300, 600, 1200]
+  for (const delay of delays) {
+    window.setTimeout(() => {
+      scrollHeadingIntoView(container, heading)
+    }, delay)
+  }
 }
 
 function blurActiveEditable(container: HTMLElement) {
@@ -42,11 +92,12 @@ function activateWikilink(
   target: string,
   onNavigateWikilink: (target: string) => void,
 ) {
-  if (!hasFollowModifier(event)) return
-
   consumeEditorLinkClick(event)
   blurActiveEditable(container)
-  onNavigateWikilink(target)
+
+  const { noteTarget, heading } = parseWikilinkTarget(target)
+  if (noteTarget) onNavigateWikilink(target)
+  if (heading) scrollHeadingIntoViewWhenAvailable(container, heading)
 }
 
 function activateExternalUrl(event: MouseEvent, href: string) {

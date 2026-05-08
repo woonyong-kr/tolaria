@@ -3,11 +3,58 @@
 import type { VaultEntry } from '../types'
 import { slugifyNoteStem } from './noteSlug'
 
-/** Extracts the target path from a wikilink reference (strips [[ ]] and display text). */
-export function wikilinkTarget(ref: string): string {
-  const inner = ref.replace(/^\[\[|\]\]$/g, '')
+export interface ParsedWikilinkTarget {
+  noteTarget: string
+  heading: string | null
+}
+
+function stripWikilinkBrackets(ref: string): string {
+  return ref.replace(/^\[\[|\]\]$/g, '')
+}
+
+function splitDisplayText(inner: string): string {
   const pipeIdx = inner.indexOf('|')
   return pipeIdx !== -1 ? inner.slice(0, pipeIdx) : inner
+}
+
+export function parseWikilinkTarget(rawTarget: string): ParsedWikilinkTarget {
+  const target = splitDisplayText(stripWikilinkBrackets(rawTarget)).trim()
+  const hashIdx = target.indexOf('#')
+  if (hashIdx === -1) return { noteTarget: target, heading: null }
+
+  return {
+    noteTarget: target.slice(0, hashIdx),
+    heading: target.slice(hashIdx + 1) || null,
+  }
+}
+
+/** Extracts the target path from a wikilink reference (strips [[ ]] and display text). */
+export function wikilinkTarget(ref: string): string {
+  return parseWikilinkTarget(ref).noteTarget
+}
+
+/** Extracts the heading anchor from a wikilink reference, if present. */
+export function wikilinkHeading(ref: string): string | null {
+  return parseWikilinkTarget(ref).heading
+}
+
+/** Removes any heading anchor from a lookup target but keeps display text handling separate. */
+export function wikilinkLookupTarget(ref: string): string {
+  return parseWikilinkTarget(ref).noteTarget
+}
+
+/** Returns true for same-note heading links like [[#Heading]]. */
+export function isSameNoteHeadingTarget(ref: string): boolean {
+  const parsed = parseWikilinkTarget(ref)
+  return parsed.noteTarget === '' && parsed.heading !== null
+}
+
+function displayTargetWithoutAnchor(ref: string): string {
+  const inner = ref.replace(/^\[\[|\]\]$/g, '')
+  const pipeIdx = inner.indexOf('|')
+  const target = pipeIdx !== -1 ? inner.slice(0, pipeIdx) : inner
+  const hashIdx = target.indexOf('#')
+  return hashIdx !== -1 ? target.slice(0, hashIdx) || target.slice(hashIdx + 1) : target
 }
 
 /** Extracts the display label from a wikilink reference. Falls back to humanised path stem. */
@@ -15,7 +62,8 @@ export function wikilinkDisplay(ref: string): string {
   const inner = ref.replace(/^\[\[|\]\]$/g, '')
   const pipeIdx = inner.indexOf('|')
   if (pipeIdx !== -1) return inner.slice(pipeIdx + 1)
-  const last = inner.split('/').pop() ?? inner
+  const displayTarget = displayTargetWithoutAnchor(inner)
+  const last = displayTarget.split('/').pop() ?? displayTarget
   return last.replace(/-/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
 }
 
@@ -64,7 +112,7 @@ interface ResolutionKey {
 }
 
 function buildResolutionKey(rawTarget: string): ResolutionKey {
-  const exactTarget = rawTarget.includes('|') ? rawTarget.split('|')[0] : rawTarget
+  const exactTarget = wikilinkLookupTarget(rawTarget)
   const normalizedTarget = exactTarget.toLowerCase()
   const lastSegment = exactTarget.includes('/') ? (exactTarget.split('/').pop() ?? exactTarget).toLowerCase() : normalizedTarget
   const humanizedTarget = lastSegment.replace(/-/g, ' ')

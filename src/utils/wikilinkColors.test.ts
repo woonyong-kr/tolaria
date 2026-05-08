@@ -62,6 +62,10 @@ describe('findEntryByTarget', () => {
     expect(findEntryByTarget(allEntries, 'Alice|Alice S.')).toBe(personEntry)
   })
 
+  it('handles heading syntax', () => {
+    expect(findEntryByTarget(allEntries, 'person/alice#Details|Alice Details')).toBe(personEntry)
+  })
+
   it('returns undefined for non-existent target', () => {
     expect(findEntryByTarget(allEntries, 'Non Existent')).toBeUndefined()
   })
@@ -156,5 +160,15 @@ describe('resolveWikilinkColor', () => {
     const result = resolveWikilinkColor(allEntries, 'person/alice|Alice S.')
     expect(result.isBroken).toBe(false)
     expect(result.color).toBe('var(--accent-yellow)')
+  })
+
+  it('resolves heading targets without marking them broken', () => {
+    const crossNote = resolveWikilinkColor(allEntries, 'person/alice#Details|Alice Details')
+    expect(crossNote.isBroken).toBe(false)
+    expect(crossNote.color).toBe('var(--accent-yellow)')
+
+    const sameNote = resolveWikilinkColor(allEntries, '#Local Heading')
+    expect(sameNote.isBroken).toBe(false)
+    expect(sameNote.color).toBe('var(--muted-foreground)')
   })
 })

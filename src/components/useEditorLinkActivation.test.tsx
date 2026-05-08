@@ -65,14 +65,11 @@ describe('useEditorLinkActivation', () => {
     mockOpenExternalUrl.mockClear()
   })
 
-  it('navigates wikilinks only on Cmd+click', () => {
+  it('navigates wikilinks on regular click', () => {
     const { container, onNavigateWikilink } = renderHarness()
     const wikilink = appendWikilink(container, 'Alpha Project')
 
     fireEvent.click(wikilink)
-    expect(onNavigateWikilink).not.toHaveBeenCalled()
-
-    fireEvent.click(wikilink, { metaKey: true })
     expect(onNavigateWikilink).toHaveBeenCalledWith('Alpha Project')
   })
 
@@ -87,6 +84,21 @@ describe('useEditorLinkActivation', () => {
 
     expect(onNavigateWikilink).toHaveBeenCalledWith('Alpha Project')
     expect(document.activeElement).not.toBe(editable)
+  })
+
+  it('scrolls same-note heading wikilinks without navigating to another note', () => {
+    const { container, onNavigateWikilink } = renderHarness()
+    const heading = document.createElement('h2')
+    const scrollIntoView = vi.fn()
+    heading.textContent = '구현 전 전체 그림'
+    heading.scrollIntoView = scrollIntoView
+    container.appendChild(heading)
+    const wikilink = appendWikilink(container, '#구현 전 전체 그림')
+
+    fireEvent.click(wikilink)
+
+    expect(onNavigateWikilink).not.toHaveBeenCalled()
+    expect(scrollIntoView).toHaveBeenCalledWith({ block: 'start', behavior: 'smooth' })
   })
 
   it('opens URLs only on Cmd+click', () => {
