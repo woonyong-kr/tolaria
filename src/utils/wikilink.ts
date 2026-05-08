@@ -10,12 +10,40 @@ export function wikilinkTarget(ref: string): string {
   return pipeIdx !== -1 ? inner.slice(0, pipeIdx) : inner
 }
 
+export interface ParsedWikilinkTarget {
+  fragment: string | null
+  noteTarget: string
+  rawTarget: string
+}
+
+/** Split a wikilink target into the note part and optional heading fragment. */
+export function parseWikilinkTarget(ref: string): ParsedWikilinkTarget {
+  const rawTarget = wikilinkTarget(ref).trim()
+  const hashIndex = rawTarget.indexOf('#')
+  if (hashIndex === -1) {
+    return { rawTarget, noteTarget: rawTarget, fragment: null }
+  }
+
+  return {
+    rawTarget,
+    noteTarget: rawTarget.slice(0, hashIndex).trim(),
+    fragment: rawTarget.slice(hashIndex + 1).trim() || null,
+  }
+}
+
+export function isHeadingOnlyWikilinkTarget(ref: string): boolean {
+  const parsed = parseWikilinkTarget(ref)
+  return parsed.rawTarget.startsWith('#') && parsed.noteTarget === '' && parsed.fragment !== null
+}
+
 /** Extracts the display label from a wikilink reference. Falls back to humanised path stem. */
 export function wikilinkDisplay(ref: string): string {
   const inner = ref.replace(/^\[\[|\]\]$/g, '')
   const pipeIdx = inner.indexOf('|')
   if (pipeIdx !== -1) return inner.slice(pipeIdx + 1)
-  const last = inner.split('/').pop() ?? inner
+  const parsed = parseWikilinkTarget(inner)
+  const displaySource = parsed.noteTarget || parsed.fragment || parsed.rawTarget
+  const last = displaySource.split('/').pop() ?? displaySource
   return last.replace(/-/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
 }
 
@@ -64,7 +92,7 @@ interface ResolutionKey {
 }
 
 function buildResolutionKey(rawTarget: string): ResolutionKey {
-  const exactTarget = rawTarget.includes('|') ? rawTarget.split('|')[0] : rawTarget
+  const exactTarget = parseWikilinkTarget(rawTarget).noteTarget
   const normalizedTarget = exactTarget.toLowerCase()
   const lastSegment = exactTarget.includes('/') ? (exactTarget.split('/').pop() ?? exactTarget).toLowerCase() : normalizedTarget
   const humanizedTarget = lastSegment.replace(/-/g, ' ')

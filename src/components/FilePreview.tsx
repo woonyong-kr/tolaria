@@ -6,6 +6,7 @@ import { trackFilePreviewAction, trackFilePreviewFailed, trackFilePreviewOpened 
 import { filePreviewKind, previewFileTypeLabel, type FilePreviewKind } from '../utils/filePreview'
 import { focusNoteListContainer } from '../utils/neighborhoodHistory'
 import { openLocalFile } from '../utils/url'
+import { extractDrawioEmbeddedImage } from '../utils/drawioPreview'
 import { Button } from './ui/button'
 
 interface FilePreviewProps {
@@ -185,22 +186,6 @@ function FilePreviewImage({
       />
     </div>
   )
-}
-
-function extractDrawioEmbeddedImage(xml: string): string | null {
-  const document = new DOMParser().parseFromString(xml, 'application/xml')
-  if (document.querySelector('parsererror')) return null
-
-  for (const cell of Array.from(document.querySelectorAll('mxCell[style]'))) {
-    const style = cell.getAttribute('style') ?? ''
-    const encodedMatch = style.match(/(?:^|;)image=(data:image\/[^;]+%3Bbase64,[^;]+)(?:;|$)/iu)
-    if (encodedMatch?.[1]) return encodedMatch[1].replace(/%3B/iu, ';')
-
-    const legacyMatch = style.match(/(?:^|;)image=(data:image\/[^;]+;base64,[^;]+)(?:;|$)/u)
-    if (legacyMatch?.[1]) return legacyMatch[1]
-  }
-
-  return null
 }
 
 function FilePreviewDrawio({

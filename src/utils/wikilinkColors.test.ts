@@ -157,4 +157,16 @@ describe('resolveWikilinkColor', () => {
     expect(result.isBroken).toBe(false)
     expect(result.color).toBe('var(--accent-yellow)')
   })
+
+  it('does not mark same-page heading links as broken', () => {
+    const result = resolveWikilinkColor(allEntries, '#다음 링크|다음 링크')
+    expect(result.isBroken).toBe(false)
+    expect(result.color).toBe('var(--muted-foreground)')
+  })
+
+  it('uses the note type color for links with heading fragments', () => {
+    const result = resolveWikilinkColor(allEntries, 'person/alice#원본 시각 자료')
+    expect(result.isBroken).toBe(false)
+    expect(result.color).toBe('var(--accent-yellow)')
+  })
 })

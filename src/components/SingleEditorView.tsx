@@ -1,4 +1,5 @@
 import { useEffect, useCallback, useMemo, useRef, useContext } from 'react'
+import { convertFileSrc } from '@tauri-apps/api/core'
 import { trackEvent } from '../lib/telemetry'
 import {
   useCreateBlockNote,
@@ -47,6 +48,8 @@ import {
   registerPlainTextPasteTarget,
   type PlainTextPasteTarget,
 } from '../utils/plainTextPaste'
+import { extractDrawioEmbeddedImage, resolveDrawioLinkPath } from '../utils/drawioPreview'
+import { parseWikilinkTarget } from '../utils/wikilink'
 
 const TEST_TABLE_MARKDOWN = `| Head 1 | Head 2 | Head 3 |
 | --- | --- | --- |
@@ -624,8 +627,182 @@ function useRichEditorPlainTextPasteTarget(options: {
   }, [])
 }
 
+function normalizeHeadingText(value: string): string {
+  return value.trim().replace(/\s+/gu, ' ').toLowerCase()
+}
+
+function decodeFragment(value: string): string {
+  try {
+    return decodeURIComponent(value)
+  } catch {
+    return value
+  }
+}
+
+function scrollToHeadingFragment(container: HTMLElement, fragment: string): boolean {
+  const target = normalizeHeadingText(decodeFragment(fragment).replace(/-/gu, ' '))
+  if (!target) return false
+
+  const headings = Array.from(container.querySelectorAll<HTMLElement>(
+    '[data-content-type="heading"], h1, h2, h3, h4, h5, h6',
+  ))
+  const heading = headings.find(element => normalizeHeadingText(element.textContent ?? '') === target)
+  if (!heading) return false
+
+  heading.scrollIntoView({ block: 'start', behavior: 'smooth' })
+  return true
+}
+
+function useSamePageWikilinkNavigation(containerRef: React.RefObject<HTMLDivElement | null>) {
+  return useCallback((target: string): boolean => {
+    const parsed = parseWikilinkTarget(target)
+    if (parsed.noteTarget || !parsed.fragment) return false
+
+    const container = containerRef.current
+    return container ? scrollToHeadingFragment(container, parsed.fragment) : false
+  }, [containerRef])
+}
+
+function createDrawioEmbedShell(href: string): HTMLDivElement {
+  const shell = document.createElement('div')
+  shell.className = 'drawio-inline-preview'
+  shell.dataset.drawioEmbedFor = href
+
+  const status = document.createElement('div')
+  status.className = 'drawio-inline-preview__status'
+  status.textContent = 'Loading draw.io preview...'
+  shell.append(status)
+
+  return shell
+}
+
+function renderDrawioEmbedImage(shell: HTMLElement, imageSrc: string, label: string) {
+  shell.replaceChildren()
+  const image = document.createElement('img')
+  image.className = 'drawio-inline-preview__image'
+  image.src = imageSrc
+  image.alt = label
+  image.loading = 'lazy'
+  shell.append(image)
+}
+
+function renderDrawioEmbedError(shell: HTMLElement) {
+  shell.replaceChildren()
+  const status = document.createElement('div')
+  status.className = 'drawio-inline-preview__status drawio-inline-preview__status--error'
+  status.textContent = 'draw.io preview image is not embedded in this file.'
+  shell.append(status)
+}
+
+function anchorLabel(anchor: HTMLAnchorElement): string {
+  return anchor.textContent?.trim() || anchor.getAttribute('href') || 'draw.io diagram'
+}
+
+function insertDrawioEmbedAfterAnchor(anchor: HTMLAnchorElement): HTMLDivElement | null {
+  const href = anchor.getAttribute('href')?.trim()
+  if (!href) return null
+
+  const parentBlock = anchor.closest<HTMLElement>('.bn-block-outer') ?? anchor.parentElement
+  if (!parentBlock) return null
+
+  const next = parentBlock.nextElementSibling
+  if (next instanceof HTMLElement && next.dataset.drawioEmbedFor === href) return null
+
+  const shell = createDrawioEmbedShell(href)
+  parentBlock.after(shell)
+  return shell
+}
+
+function useDrawioLinkEmbeds(options: {
+  activePath?: string | null
+  containerRef: React.RefObject<HTMLDivElement | null>
+  vaultPath?: string
+}) {
+  const { activePath, containerRef, vaultPath } = options
+
+  useEffect(() => {
+    const container = containerRef.current
+    if (!container || !vaultPath || !activePath) return
+
+    let disposed = false
+    let applyingEmbeds = false
+    let scanTimer: number | null = null
+    const pendingControllers = new Set<AbortController>()
+
+    const clearGeneratedEmbeds = () => {
+      container.querySelectorAll<HTMLElement>('.drawio-inline-preview[data-drawio-embed-for]').forEach(element => element.remove())
+    }
+
+    const scan = () => {
+      if (disposed) return
+      applyingEmbeds = true
+      clearGeneratedEmbeds()
+      const anchors = Array.from(container.querySelectorAll<HTMLAnchorElement>('a[href]'))
+
+      for (const anchor of anchors) {
+        const href = anchor.getAttribute('href')?.trim() ?? ''
+        const drawioPath = resolveDrawioLinkPath({ href, currentNotePath: activePath, vaultPath })
+        if (!drawioPath) continue
+
+        const shell = insertDrawioEmbedAfterAnchor(anchor)
+        if (!shell) continue
+
+        const controller = new AbortController()
+        pendingControllers.add(controller)
+        fetch(convertFileSrc(drawioPath), { signal: controller.signal })
+          .then(response => response.ok ? response.text() : Promise.reject(new Error(`HTTP ${response.status}`)))
+          .then((xml) => {
+            if (disposed || !shell.isConnected) return
+            const imageSrc = extractDrawioEmbeddedImage(xml)
+            if (!imageSrc) {
+              renderDrawioEmbedError(shell)
+              return
+            }
+            renderDrawioEmbedImage(shell, imageSrc, anchorLabel(anchor))
+          })
+          .catch((error) => {
+            if (disposed || controller.signal.aborted || !shell.isConnected) return
+            console.warn('[drawio] Failed to render inline preview:', error)
+            renderDrawioEmbedError(shell)
+          })
+          .finally(() => {
+            pendingControllers.delete(controller)
+          })
+      }
+      queueMicrotask(() => {
+        applyingEmbeds = false
+      })
+    }
+
+    const scheduleScan = () => {
+      if (scanTimer !== null) window.clearTimeout(scanTimer)
+      scanTimer = window.setTimeout(scan, 80)
+    }
+
+    scheduleScan()
+    const observer = new MutationObserver((mutations) => {
+      if (applyingEmbeds) return
+      if (mutations.every(mutation => mutation.target instanceof HTMLElement && mutation.target.closest('.drawio-inline-preview'))) {
+        return
+      }
+      scheduleScan()
+    })
+    observer.observe(container, { childList: true, subtree: true })
+
+    return () => {
+      disposed = true
+      if (scanTimer !== null) window.clearTimeout(scanTimer)
+      observer.disconnect()
+      pendingControllers.forEach(controller => controller.abort())
+      pendingControllers.clear()
+      clearGeneratedEmbeds()
+    }
+  }, [activePath, containerRef, vaultPath])
+}
+
 /** Single BlockNote editor view — content is swapped via replaceBlocks */
-export function SingleEditorView({ editor, entries, onNavigateWikilink, onChange, vaultPath, editable = true, locale = 'en' }: {
+export function SingleEditorView({ activePath, editor, entries, onNavigateWikilink, onChange, vaultPath, editable = true, locale = 'en' }: {
+  activePath?: string | null
   editor: ReturnType<typeof useCreateBlockNote>
   entries: VaultEntry[]
   onNavigateWikilink: (target: string) => void
@@ -643,7 +820,13 @@ export function SingleEditorView({ editor, entries, onNavigateWikilink, onChange
   const { isDragOver } = useImageDrop({ containerRef, onImageUrl, vaultPath })
   const lightbox = useImageLightbox({ containerRef })
   useBlockNoteSideMenuHoverGuard(containerRef)
-  useEditorLinkActivation(containerRef, onNavigateWikilink)
+  const navigateSamePageWikilink = useSamePageWikilinkNavigation(containerRef)
+  const handleNavigateWikilink = useCallback((target: string) => {
+    if (navigateSamePageWikilink(target)) return
+    onNavigateWikilink(target)
+  }, [navigateSamePageWikilink, onNavigateWikilink])
+  useEditorLinkActivation(containerRef, handleNavigateWikilink)
+  useDrawioLinkEmbeds({ activePath, containerRef, vaultPath })
 
   useEffect(() => {
     _wikilinkEntriesRef.current = entries

@@ -345,6 +345,7 @@ function EditorCanvas({
   onEditorChange,
   isDeletedPreview,
   vaultPath,
+  activeTab,
   locale,
 }: Pick<
   EditorContentModel,
@@ -356,6 +357,7 @@ function EditorCanvas({
   | 'onEditorChange'
   | 'isDeletedPreview'
   | 'vaultPath'
+  | 'activeTab'
   | 'locale'
 >) {
   if (!showEditor) return null
@@ -367,6 +369,7 @@ function EditorCanvas({
     >
       <div className="editor-content-wrapper">
         <SingleEditorView
+          activePath={activeTab?.entry.path ?? null}
           editor={editor}
           entries={entries}
           onNavigateWikilink={onNavigateWikilink}
@@ -499,6 +502,7 @@ export function EditorContentLayout(model: EditorContentModel) {
             showEditor={showEditor}
             cssVars={cssVars}
             vaultPath={vaultPath}
+            activeTab={activeTab}
             editor={editor}
             entries={entries}
             onNavigateWikilink={onNavigateWikilink}

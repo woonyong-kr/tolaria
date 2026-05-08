@@ -6,7 +6,7 @@ import {
   GITIGNORED_VISIBILITY_APPLIED_EVENT,
   type GitignoredVisibilityAppliedEvent,
 } from '../lib/gitignoredVisibilityEvents'
-import { resolveEntry } from '../utils/wikilink'
+import { isHeadingOnlyWikilinkTarget, resolveEntry } from '../utils/wikilink'
 import { useNoteCreation } from './useNoteCreation'
 import {
   useNoteRename,
@@ -118,6 +118,7 @@ interface NavigateWikilinkParams {
 }
 
 function navigateWikilink({ entries, target, selectNote }: NavigateWikilinkParams): void {
+  if (isHeadingOnlyWikilinkTarget(target)) return
   const found = resolveEntry(entries, target)
   if (found) selectNote(found)
   else console.warn(`Navigation target not found: ${target}`)

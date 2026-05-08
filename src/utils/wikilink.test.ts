@@ -9,6 +9,8 @@ import {
   canonicalWikilinkTargetForEntry,
   canonicalWikilinkTargetForTitle,
   formatWikilinkRef,
+  isHeadingOnlyWikilinkTarget,
+  parseWikilinkTarget,
 } from './wikilink'
 
 function makeEntry(overrides: Partial<VaultEntry>): VaultEntry {
@@ -32,6 +34,25 @@ describe('wikilinkTarget', () => {
   })
   it('handles bare text without brackets', () => {
     expect(wikilinkTarget('just text')).toBe('just text')
+  })
+})
+
+describe('parseWikilinkTarget', () => {
+  it('splits a note target from a heading fragment', () => {
+    expect(parseWikilinkTarget('[[maps/os/pintos-vm-visual-map#원본 시각 자료|원본 시각 자료]]')).toEqual({
+      rawTarget: 'maps/os/pintos-vm-visual-map#원본 시각 자료',
+      noteTarget: 'maps/os/pintos-vm-visual-map',
+      fragment: '원본 시각 자료',
+    })
+  })
+
+  it('recognizes same-page heading targets', () => {
+    expect(isHeadingOnlyWikilinkTarget('[[#다음 링크|다음 링크]]')).toBe(true)
+    expect(parseWikilinkTarget('[[#다음 링크|다음 링크]]')).toEqual({
+      rawTarget: '#다음 링크',
+      noteTarget: '',
+      fragment: '다음 링크',
+    })
   })
 })
 
@@ -74,6 +95,15 @@ describe('resolveEntry', () => {
   it('handles pipe syntax: uses target part for lookup', () => {
     expect(resolveEntry(entries, 'person/alice|Alice S.')).toBe(alice)
     expect(resolveEntry(entries, 'Alice|A')).toBe(alice)
+  })
+
+  it('ignores heading fragments when resolving note links', () => {
+    expect(resolveEntry(entries, 'person/alice#원본 시각 자료')).toBe(alice)
+    expect(resolveEntry(entries, 'project/my-project#먼저 볼 것|먼저 볼 것')).toBe(project)
+  })
+
+  it('does not resolve same-page heading-only links to an unrelated entry', () => {
+    expect(resolveEntry(entries, '#다음 링크')).toBeUndefined()
   })
 
   it('returns undefined for non-existent target', () => {

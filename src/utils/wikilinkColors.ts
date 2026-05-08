@@ -4,7 +4,7 @@
  */
 import type { VaultEntry } from '../types'
 import { getTypeColor } from './typeColors'
-import { resolveEntry } from './wikilink'
+import { isHeadingOnlyWikilinkTarget, resolveEntry } from './wikilink'
 
 /** Broken-link color: muted text to signal the target note doesn't exist */
 const BROKEN_LINK_COLOR = 'var(--text-muted)'
@@ -27,6 +27,7 @@ export interface WikilinkColorResult { color: string; isBroken: boolean }
 /** Resolve the display color for a wikilink target */
 export function resolveWikilinkColor(entries: VaultEntry[], target: string): WikilinkColorResult {
   if (!entries.length) return { color: getTypeColor(null), isBroken: false }
+  if (isHeadingOnlyWikilinkTarget(target)) return { color: getTypeColor(null), isBroken: false }
   const entry = findEntryByTarget(entries, target)
   if (!entry) return { color: BROKEN_LINK_COLOR, isBroken: true }
   return { color: lookupColorForEntry(entries, entry), isBroken: false }

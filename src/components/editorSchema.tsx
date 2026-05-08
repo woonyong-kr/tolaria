@@ -6,7 +6,7 @@ import {
 } from '@blocknote/core'
 import { createReactBlockSpec, createReactInlineContentSpec } from '@blocknote/react'
 import { resolveWikilinkColor as resolveColor } from '../utils/wikilinkColors'
-import { resolveEntry } from '../utils/wikilink'
+import { parseWikilinkTarget, resolveEntry } from '../utils/wikilink'
 import { MATH_BLOCK_TYPE, MATH_INLINE_TYPE, renderMathToHtml } from '../utils/mathMarkdown'
 import { MERMAID_BLOCK_TYPE, mermaidFenceSource } from '../utils/mermaidMarkdown'
 import type { VaultEntry } from '../types'
@@ -33,7 +33,9 @@ function resolveDisplayInfo(target: string): { text: string; icon: string | null
   if (entry) {
     return { text: entry.title, icon: entry.icon ?? null }
   }
-  const last = target.split('/').pop() ?? target
+  const parsed = parseWikilinkTarget(target)
+  const displaySource = parsed.noteTarget || parsed.fragment || parsed.rawTarget
+  const last = displaySource.split('/').pop() ?? displaySource
   return { text: last.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase()), icon: null }
 }
 
