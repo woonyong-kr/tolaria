@@ -193,8 +193,11 @@ function extractDrawioEmbeddedImage(xml: string): string | null {
 
   for (const cell of Array.from(document.querySelectorAll('mxCell[style]'))) {
     const style = cell.getAttribute('style') ?? ''
-    const match = style.match(/(?:^|;)image=(data:image\/[^;]+;base64,[^;]+)(?:;|$)/u)
-    if (match?.[1]) return match[1]
+    const encodedMatch = style.match(/(?:^|;)image=(data:image\/[^;]+%3Bbase64,[^;]+)(?:;|$)/iu)
+    if (encodedMatch?.[1]) return encodedMatch[1].replace(/%3B/iu, ';')
+
+    const legacyMatch = style.match(/(?:^|;)image=(data:image\/[^;]+;base64,[^;]+)(?:;|$)/u)
+    if (legacyMatch?.[1]) return legacyMatch[1]
   }
 
   return null

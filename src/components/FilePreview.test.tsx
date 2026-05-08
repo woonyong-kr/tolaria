@@ -125,7 +125,7 @@ describe('FilePreview', () => {
           <diagram>
             <mxGraphModel>
               <root>
-                <mxCell id="preview" style="shape=image;image=data:image/png;base64,abc123;" />
+                <mxCell id="preview" style="shape=image;image=data:image/png%3Bbase64,abc123;" />
               </root>
             </mxGraphModel>
           </diagram>
