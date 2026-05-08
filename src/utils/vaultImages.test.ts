@@ -52,6 +52,22 @@ describe('resolveImageUrls', () => {
     )
   })
 
+  it('converts document-relative vault asset paths to asset URLs', () => {
+    tauriMode = true
+    const markdown = '![diagram](../../assets/images/os-flow.png)'
+
+    expect(resolveImageUrls(markdown, '/vault', '/vault/maps/os/pintos-vm-visual-map.md')).toBe(
+      `![diagram](${assetUrl('/vault/assets/images/os-flow.png')})`,
+    )
+  })
+
+  it('leaves document-relative image paths that escape the vault unchanged', () => {
+    tauriMode = true
+    const markdown = '![diagram](../../../outside.png)'
+
+    expect(resolveImageUrls(markdown, '/vault', '/vault/maps/os/pintos-vm-visual-map.md')).toBe(markdown)
+  })
+
   it('converts Windows relative attachment paths without mixed separators', () => {
     tauriMode = true
     const vaultPath = 'C:\\Users\\lnq12\\Documents\\tolaria-test\\Getting Started'

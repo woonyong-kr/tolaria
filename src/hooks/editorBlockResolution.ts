@@ -131,9 +131,13 @@ async function parseMarkdownBlocks(
   return result as EditorBlocks
 }
 
-function preProcessEditorMarkdown(markdown: MarkdownBody, vaultPath?: VaultPath): PreprocessedMarkdown {
+function preProcessEditorMarkdown(
+  markdown: MarkdownBody,
+  vaultPath?: VaultPath,
+  targetPath?: NotePath,
+): PreprocessedMarkdown {
   const withMermaid = preProcessMermaidMarkdown({ markdown })
-  const withImages = vaultPath ? resolveImageUrls(withMermaid, vaultPath) : withMermaid
+  const withImages = vaultPath ? resolveImageUrls(withMermaid, vaultPath, targetPath) : withMermaid
   const withWikilinks = preProcessWikilinks(withImages)
   return preProcessMathMarkdown({ markdown: withWikilinks })
 }
@@ -173,7 +177,7 @@ export async function resolveBlocksForTarget(
   }
 
   const body = extractEditorBody(content)
-  const preprocessed = preProcessEditorMarkdown(body, vaultPath)
+  const preprocessed = preProcessEditorMarkdown(body, vaultPath, targetPath)
   const fastPathBlocks = buildFastPathBlocks({ preprocessed })
   if (fastPathBlocks) {
     return cacheResolvedEditorState(cache, targetPath, {
@@ -208,7 +212,7 @@ export async function resolveEmptyHeadingBlocks(
 
   const parsed = await parseMarkdownBlocksWithFallback({
     parseMarkdownBlocks: markdown => parseMarkdownBlocks(editor, markdown),
-    preprocessed: preProcessEditorMarkdown(remainder, vaultPath),
+    preprocessed: preProcessEditorMarkdown(remainder, vaultPath, targetPath),
     sourceMarkdown: remainder,
     context: targetPath,
   })

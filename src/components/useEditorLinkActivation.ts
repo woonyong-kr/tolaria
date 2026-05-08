@@ -83,11 +83,6 @@ function activateAnchorLink(
     return
   }
 
-  if (!hasFollowModifier(event)) {
-    consumeEditorLinkClick(event)
-    return
-  }
-
   consumeEditorLinkClick(event)
   if (!isVaultFileHref(href)) return
   blurActiveEditable(container)
