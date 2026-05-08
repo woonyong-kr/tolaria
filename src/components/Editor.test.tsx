@@ -319,6 +319,26 @@ describe('Editor', () => {
     expect(screen.queryByTestId('blocknote-view')).not.toBeInTheDocument()
   })
 
+  it('routes binary draw.io tabs to the in-app file preview', () => {
+    vi.stubGlobal('fetch', vi.fn(() => new Promise(() => {})))
+    const drawioEntry: VaultEntry = {
+      ...mockEntry,
+      path: '/vault/assets/flow.drawio',
+      filename: 'flow.drawio',
+      title: 'flow.drawio',
+      fileKind: 'binary',
+    }
+
+    renderEditor({
+      tabs: [{ entry: drawioEntry, content: '' }],
+      activeTabPath: drawioEntry.path,
+      entries: [drawioEntry],
+    })
+
+    expect(screen.getByTestId('file-preview')).toHaveTextContent('DRAWIO file')
+    expect(screen.queryByTestId('blocknote-view')).not.toBeInTheDocument()
+  })
+
   it('shows a graceful fallback when an image preview fails to render', () => {
     const imageEntry: VaultEntry = {
       ...mockEntry,

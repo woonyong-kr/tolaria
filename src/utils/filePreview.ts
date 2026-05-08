@@ -1,6 +1,6 @@
 import type { VaultEntry } from '../types'
 
-export type FilePreviewKind = 'image' | 'pdf'
+export type FilePreviewKind = 'image' | 'pdf' | 'drawio'
 
 const IMAGE_PREVIEW_EXTENSIONS = new Set([
   'apng',
@@ -17,6 +17,7 @@ const IMAGE_PREVIEW_EXTENSIONS = new Set([
   'webp',
 ])
 const PDF_PREVIEW_EXTENSIONS = new Set(['pdf'])
+const DRAWIO_PREVIEW_EXTENSIONS = new Set(['drawio'])
 
 function extensionFromFilename(filename: string): string | null {
   const lastSegment = filename.split(/[\\/]/u).pop() ?? filename
@@ -37,6 +38,10 @@ export function isPdfPreviewEntry(entry: Pick<VaultEntry, 'fileKind' | 'filename
   return filePreviewKind(entry) === 'pdf'
 }
 
+export function isDrawioPreviewEntry(entry: Pick<VaultEntry, 'fileKind' | 'filename' | 'path'>): boolean {
+  return filePreviewKind(entry) === 'drawio'
+}
+
 export function filePreviewKind(entry: Pick<VaultEntry, 'fileKind' | 'filename' | 'path'>): FilePreviewKind | null {
   if (entry.fileKind && entry.fileKind !== 'binary') return null
 
@@ -44,6 +49,7 @@ export function filePreviewKind(entry: Pick<VaultEntry, 'fileKind' | 'filename' 
   if (!extension) return null
   if (IMAGE_PREVIEW_EXTENSIONS.has(extension)) return 'image'
   if (PDF_PREVIEW_EXTENSIONS.has(extension)) return 'pdf'
+  if (DRAWIO_PREVIEW_EXTENSIONS.has(extension)) return 'drawio'
   return null
 }
 

@@ -205,6 +205,7 @@ function resolveNoteTypeIcon(entry: VaultEntry, customIcon?: string | null): Com
   const previewKind = filePreviewKind(entry)
   if (previewKind === 'image') return ImageSquare
   if (previewKind === 'pdf') return FilePdf
+  if (previewKind === 'drawio') return FileDashed
   if (entry.fileKind && entry.fileKind !== 'markdown') return getFileKindIcon(entry.fileKind)
   return getTypeIcon(entry.isA, customIcon)
 }
@@ -380,6 +381,7 @@ function resolveNoteItemTitle({
 }) {
   if (previewKind === 'image') return 'Open image preview'
   if (previewKind === 'pdf') return 'Open PDF preview'
+  if (previewKind === 'drawio') return 'Open draw.io preview'
   return isUnavailableBinary ? 'Cannot open this file type' : undefined
 }
 

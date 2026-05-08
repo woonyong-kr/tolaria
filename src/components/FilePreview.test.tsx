@@ -54,10 +54,17 @@ const pdfEntry: VaultEntry = {
   filename: 'report.pdf',
   title: 'report.pdf',
 }
+const drawioEntry: VaultEntry = {
+  ...imageEntry,
+  path: '/vault/Attachments/flow.drawio',
+  filename: 'flow.drawio',
+  title: 'flow.drawio',
+}
 
 describe('FilePreview', () => {
   beforeEach(() => {
     trackEventMock.mockClear()
+    vi.unstubAllGlobals()
   })
 
   it('routes header file actions to the active file path', () => {
@@ -108,6 +115,41 @@ describe('FilePreview', () => {
     render(<FilePreview entry={{ ...pdfEntry, fileKind: undefined }} />)
 
     expect(screen.getByTestId('pdf-file-preview')).toHaveAttribute('data', 'asset:///vault/Attachments/report.pdf')
+  })
+
+  it('renders draw.io files with an embedded preview image', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => ({
+      ok: true,
+      text: async () => `
+        <mxfile>
+          <diagram>
+            <mxGraphModel>
+              <root>
+                <mxCell id="preview" style="shape=image;image=data:image/png;base64,abc123;" />
+              </root>
+            </mxGraphModel>
+          </diagram>
+        </mxfile>
+      `,
+    })))
+
+    render(<FilePreview entry={drawioEntry} />)
+
+    expect(await screen.findByTestId('drawio-file-preview')).toHaveAttribute('src', 'data:image/png;base64,abc123')
+    expect(screen.getByText('DRAWIO file')).toBeInTheDocument()
+    expect(trackEventMock).toHaveBeenCalledWith('file_preview_opened', { preview_kind: 'drawio' })
+  })
+
+  it('falls back when a draw.io file has no embedded preview image', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => ({
+      ok: true,
+      text: async () => '<mxfile><diagram /></mxfile>',
+    })))
+
+    render(<FilePreview entry={drawioEntry} />)
+
+    expect(await screen.findByTestId('file-preview-fallback')).toHaveTextContent('draw.io preview failed')
+    expect(trackEventMock).toHaveBeenCalledWith('file_preview_failed', { preview_kind: 'drawio' })
   })
 
   it('provides a graceful fallback when a PDF preview cannot render', () => {

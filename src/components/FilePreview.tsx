@@ -39,6 +39,14 @@ function fallbackContentForPreviewKind(previewKind: FilePreviewKind | null): Omi
     }
   }
 
+  if (previewKind === 'drawio') {
+    return {
+      icon: 'warning',
+      title: 'draw.io preview failed',
+      description: 'Tolaria could not find an embedded preview image in this draw.io file.',
+    }
+  }
+
   return {
     icon: 'file',
     title: 'Preview unavailable',
@@ -179,6 +187,49 @@ function FilePreviewImage({
   )
 }
 
+function extractDrawioEmbeddedImage(xml: string): string | null {
+  const document = new DOMParser().parseFromString(xml, 'application/xml')
+  if (document.querySelector('parsererror')) return null
+
+  for (const cell of Array.from(document.querySelectorAll('mxCell[style]'))) {
+    const style = cell.getAttribute('style') ?? ''
+    const match = style.match(/(?:^|;)image=(data:image\/[^;]+;base64,[^;]+)(?:;|$)/u)
+    if (match?.[1]) return match[1]
+  }
+
+  return null
+}
+
+function FilePreviewDrawio({
+  entry,
+  imageSrc,
+}: {
+  entry: VaultEntry
+  imageSrc: string
+}) {
+  return (
+    <div className="flex h-full min-h-[260px] items-center justify-center p-6">
+      <img
+        src={imageSrc}
+        alt={entry.title}
+        className="max-h-full max-w-full object-contain"
+        data-testid="drawio-file-preview"
+      />
+    </div>
+  )
+}
+
+function FilePreviewDrawioLoading() {
+  return (
+    <div
+      className="flex h-full min-h-[260px] items-center justify-center px-8 text-center text-[13px] text-muted-foreground"
+      data-testid="drawio-file-preview-loading"
+    >
+      Loading draw.io preview...
+    </div>
+  )
+}
+
 function shouldRenderImagePreview(isImage: boolean, imageSrc: string | null, imageFailed: boolean): imageSrc is string {
   return isImage && imageSrc !== null && !imageFailed
 }
@@ -188,6 +239,8 @@ function FilePreviewBody({
   previewKind,
   assetSrc,
   imageFailed,
+  drawioImageSrc,
+  drawioFailed,
   onImageError,
   onOpenExternal,
 }: {
@@ -195,6 +248,8 @@ function FilePreviewBody({
   previewKind: FilePreviewKind | null
   assetSrc: string | null
   imageFailed: boolean
+  drawioImageSrc: string | null
+  drawioFailed: boolean
   onImageError: () => void
   onOpenExternal: () => void
 }) {
@@ -204,6 +259,14 @@ function FilePreviewBody({
 
   if (previewKind === 'pdf' && assetSrc !== null) {
     return <FilePreviewPdf entry={entry} pdfSrc={assetSrc} onOpenExternal={onOpenExternal} />
+  }
+
+  if (previewKind === 'drawio' && drawioImageSrc !== null && !drawioFailed) {
+    return <FilePreviewDrawio entry={entry} imageSrc={drawioImageSrc} />
+  }
+
+  if (previewKind === 'drawio' && !drawioFailed) {
+    return <FilePreviewDrawioLoading />
   }
 
   const fallback = fallbackContentForPreviewKind(previewKind)
@@ -225,10 +288,13 @@ export function FilePreview({
   onRevealFile,
 }: FilePreviewProps) {
   const [failedImagePath, setFailedImagePath] = useState<string | null>(null)
+  const [drawioPreview, setDrawioPreview] = useState<{ path: string; imageSrc: string | null; failed: boolean } | null>(null)
   const previewKind = filePreviewKind(entry)
   const assetSrc = useMemo(() => (previewKind ? convertFileSrc(entry.path) : null), [entry.path, previewKind])
   const fileTypeLabel = previewFileTypeLabel(entry)
   const imageFailed = failedImagePath === entry.path
+  const drawioImageSrc = drawioPreview?.path === entry.path ? drawioPreview.imageSrc : null
+  const drawioFailed = drawioPreview?.path === entry.path ? drawioPreview.failed : false
   const handleImageError = useCallback(() => {
     setFailedImagePath(entry.path)
     trackFilePreviewFailed('image')
@@ -237,6 +303,36 @@ export function FilePreview({
   useEffect(() => {
     trackFilePreviewOpened(previewKind)
   }, [entry.path, previewKind])
+
+  useEffect(() => {
+    if (previewKind !== 'drawio' || assetSrc === null) {
+      return
+    }
+
+    let cancelled = false
+
+    fetch(assetSrc)
+      .then((response) => (response.ok ? response.text() : Promise.reject(new Error(`HTTP ${response.status}`))))
+      .then((xml) => {
+        if (cancelled) return
+        const imageSrc = extractDrawioEmbeddedImage(xml)
+        if (!imageSrc) {
+          setDrawioPreview({ path: entry.path, imageSrc: null, failed: true })
+          trackFilePreviewFailed('drawio')
+          return
+        }
+        setDrawioPreview({ path: entry.path, imageSrc, failed: false })
+      })
+      .catch(() => {
+        if (cancelled) return
+        setDrawioPreview({ path: entry.path, imageSrc: null, failed: true })
+        trackFilePreviewFailed('drawio')
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [assetSrc, entry.path, previewKind])
 
   const handleOpenExternal = useCallback(() => {
     trackFilePreviewAction('open_external', previewKind)
@@ -289,6 +385,8 @@ export function FilePreview({
           previewKind={previewKind}
           assetSrc={assetSrc}
           imageFailed={imageFailed}
+          drawioImageSrc={drawioImageSrc}
+          drawioFailed={drawioFailed}
           onImageError={handleImageError}
           onOpenExternal={handleOpenExternal}
         />
