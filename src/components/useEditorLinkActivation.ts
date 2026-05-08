@@ -60,6 +60,40 @@ function activateExternalUrl(event: MouseEvent, href: string) {
   openExternalUrl(urlTarget).catch((err) => console.warn('[link] Failed to open URL:', err))
 }
 
+function isVaultFileHref(href: string) {
+  const trimmed = href.trim()
+  if (!trimmed || /\s/.test(trimmed)) return false
+  return (
+    trimmed.startsWith('./')
+    || trimmed.startsWith('../')
+    || (trimmed.startsWith('/') && !trimmed.startsWith('//'))
+    || /^[^:/?#]+\.[a-z0-9]+(?:[?#].*)?$/i.test(trimmed)
+  )
+}
+
+function activateAnchorLink(
+  event: MouseEvent,
+  container: HTMLElement,
+  href: string,
+  onNavigateWikilink: (target: string) => void,
+) {
+  const urlTarget = normalizeExternalUrl(href)
+  if (urlTarget) {
+    activateExternalUrl(event, href)
+    return
+  }
+
+  if (!hasFollowModifier(event)) {
+    consumeEditorLinkClick(event)
+    return
+  }
+
+  consumeEditorLinkClick(event)
+  if (!isVaultFileHref(href)) return
+  blurActiveEditable(container)
+  onNavigateWikilink(href)
+}
+
 function handleEditorLinkClick(
   event: MouseEvent,
   container: HTMLElement,
@@ -74,7 +108,7 @@ function handleEditorLinkClick(
   }
 
   const href = resolveAnchorHref(event.target)
-  if (href) activateExternalUrl(event, href)
+  if (href) activateAnchorLink(event, container, href, onNavigateWikilink)
 }
 
 export function useEditorLinkActivation(

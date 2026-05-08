@@ -102,6 +102,20 @@ describe('useEditorLinkActivation', () => {
     expect(modifiedClick.defaultPrevented).toBe(true)
   })
 
+  it('navigates vault-relative file anchors only on Cmd+click', () => {
+    const { container, onNavigateWikilink } = renderHarness()
+    const link = appendUrl(container, '../../assets/diagrams/os-pintos-process-fork-sequence.drawio')
+
+    const plainClick = dispatchClick(link)
+    expect(onNavigateWikilink).not.toHaveBeenCalled()
+    expect(plainClick.defaultPrevented).toBe(true)
+
+    const modifiedClick = dispatchClick(link, { metaKey: true })
+    expect(onNavigateWikilink).toHaveBeenCalledWith('../../assets/diagrams/os-pintos-process-fork-sequence.drawio')
+    expect(mockOpenExternalUrl).not.toHaveBeenCalled()
+    expect(modifiedClick.defaultPrevented).toBe(true)
+  })
+
   it('blocks malformed URL anchors instead of opening or falling through', () => {
     const { container } = renderHarness()
     const link = appendUrl(container, 'https://exa mple.com')
