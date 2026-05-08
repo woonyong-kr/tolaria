@@ -238,6 +238,21 @@ describe('FilePreview', () => {
     expect(trackEventMock).not.toHaveBeenCalledWith('file_preview_failed', { preview_kind: 'drawio' })
   })
 
+  it('uses the matching assets image when a draw.io asset request fails', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => ({
+      ok: false,
+      status: 404,
+    })))
+
+    render(<FilePreview entry={vaultAssetDrawioEntry} />)
+
+    expect(await screen.findByTestId('drawio-file-preview')).toHaveAttribute(
+      'src',
+      'asset:///vault/assets/images/os-pintos-vm-page-types-structure-preview.png',
+    )
+    expect(trackEventMock).not.toHaveBeenCalledWith('file_preview_failed', { preview_kind: 'drawio' })
+  })
+
   it('falls back when the generated draw.io preview image cannot render', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => ({
       ok: true,

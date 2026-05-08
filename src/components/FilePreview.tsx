@@ -221,6 +221,12 @@ function FilePreviewDrawioLoading() {
   )
 }
 
+function drawioFallbackImageSrc(drawioPath: string): string | null {
+  if (!drawioPath.includes('/assets/diagrams/')) return null
+  const previewImagePath = resolveDrawioPreviewImagePath(drawioPath)
+  return previewImagePath ? convertFileSrc(previewImagePath) : null
+}
+
 function shouldRenderImagePreview(isImage: boolean, imageSrc: string | null, imageFailed: boolean): imageSrc is string {
   return isImage && imageSrc !== null && !imageFailed
 }
@@ -315,9 +321,9 @@ export function FilePreview({
         if (cancelled) return
         const imageSrc = extractDrawioEmbeddedImage(xml)
         if (!imageSrc) {
-          const previewImagePath = resolveDrawioPreviewImagePath(entry.path)
-          if (previewImagePath) {
-            setDrawioPreview({ path: entry.path, imageSrc: convertFileSrc(previewImagePath), failed: false })
+          const fallbackImageSrc = drawioFallbackImageSrc(entry.path)
+          if (fallbackImageSrc) {
+            setDrawioPreview({ path: entry.path, imageSrc: fallbackImageSrc, failed: false })
           } else {
             setDrawioPreview({ path: entry.path, imageSrc: null, failed: true })
             trackFilePreviewFailed('drawio')
@@ -328,8 +334,13 @@ export function FilePreview({
       })
       .catch(() => {
         if (cancelled) return
-        setDrawioPreview({ path: entry.path, imageSrc: null, failed: true })
-        trackFilePreviewFailed('drawio')
+        const fallbackImageSrc = drawioFallbackImageSrc(entry.path)
+        if (fallbackImageSrc) {
+          setDrawioPreview({ path: entry.path, imageSrc: fallbackImageSrc, failed: false })
+        } else {
+          setDrawioPreview({ path: entry.path, imageSrc: null, failed: true })
+          trackFilePreviewFailed('drawio')
+        }
       })
 
     return () => {
